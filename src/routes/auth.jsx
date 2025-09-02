@@ -32,8 +32,6 @@ const Auth = () => {
       alert("An unexpected error occurred.");
     }
   };
-  console.log(error)
-
   const handleSignOut = async () => {
     await signOut();
     setIsAuthenticated(false);
