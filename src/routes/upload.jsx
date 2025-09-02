@@ -5,22 +5,26 @@ import FileUploader from "../components/FileUploader";
 import { convertPdfToImage } from "../lib/pdf2img";
 import { generateUUID } from "../lib/utils";
 import { prepareInstructions } from "../constants";
+import { useUser } from "../context/userContext";
 
 const Upload = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const next = location.search.split("next=")[1] || "/";
-
-    const [isAuthenticated, setIsAuthenticated] = useState(
-        localStorage.getItem("isAuthenticated") === "true"
-    );
     const [isProcessing, setIsProcessing] = useState(false);
     const [statusText, setStatusText] = useState("");
     const [file, setFile] = useState(null);
 
+    const { user, checkAuthStatus, saveToPuter, loading, error } = useUser();
+
+
     useEffect(() => {
-        if (!isAuthenticated) navigate("/auth?next=/");
-    }, [isAuthenticated, navigate]);
+        const init = async () => {
+            const status = await checkAuthStatus()
+            if (!status) navigate('/auth?next=/upload');
+        }
+        init()
+    }, [navigate]);
 
     const handleFileSelect = (selectedFile) => {
         setFile(selectedFile);
@@ -31,14 +35,18 @@ const Upload = () => {
             if (!file) return;
 
             setIsProcessing(true);
-            setStatusText("Converting PDF to image...");
 
-            // Convert PDF to image
+            setStatusText('Uploading the file...');
+            const uploadedFile = await puter.fs.upload([file]);
+            if (!uploadedFile) return setStatusText('Error: Failed to upload file');
+
+            setStatusText('Converting to image...');
             const imageFile = await convertPdfToImage(file);
-            if (!imageFile) {
-                setStatusText("Error: Failed to convert PDF to image");
-                return;
-            }
+            if (!imageFile.file) return setStatusText('Error: Failed to convert PDF to image');
+
+            setStatusText('Uploading the image...');
+            const uploadedImage = await puter.fs.upload([imageFile.file]);
+            if (!uploadedImage) return setStatusText('Error: Failed to upload image');
 
             setStatusText("Preparing data for analysis...");
             const instructions = prepareInstructions({ jobTitle, jobDescription });
@@ -52,28 +60,18 @@ const Upload = () => {
 
             const uuid = generateUUID();
 
-            // Use URL.createObjectURL instead of storing raw blob in localStorage
-            const fileToBase64 = (file) => new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = (err) => reject(err);
-            });
-
-            const resumeBase64 = await fileToBase64(file);
-            const imageBase64 = await fileToBase64(imageFile.file);
-
             const data = {
                 id: uuid,
-                resumeFile: resumeBase64,
-                imageFile: imageBase64,
+                resumePath: uploadedFile.path,
+                imagePath: uploadedImage.path,
                 companyName,
                 jobTitle,
                 jobDescription,
                 feedback,
             };
+            setStatusText('Analysis complete, redirecting...');
 
-            localStorage.setItem(`resume:${uuid}`, JSON.stringify(data));
+            saveToPuter(data)
             setStatusText("Analysis complete!");
             navigate(`/resume/${uuid}`);
         } catch (err) {
@@ -84,10 +82,10 @@ const Upload = () => {
         }
     };
 
-    const analyzeResumeWithAI = async (imageFile, instructions) => {
+    const analyzeResumeWithAI = async (uploadedFile, instructions) => {
         try {
-            const response = await puter.ai.chat(instructions, imageFile, {
-                model: "gpt-4o-mini",
+            const response = await puter.ai.chat(instructions, uploadedFile, {
+                model: "gpt-5-nano",
                 temperature: 0,
             });
 

@@ -8,8 +8,8 @@ function App() {
   const routes = useRoutes([
     { path: "/", element: <Home /> },
     { path: "/auth", element: <Auth /> },
-    { path: "upload", element: <Upload /> },
-    { path: "resume/:id", element: <Resume /> },
+    { path: "/upload", element: <Upload /> },
+    { path: "/resume/:id", element: <Resume /> },
   ]);
 
   return routes;

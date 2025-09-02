@@ -1,52 +1,41 @@
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-
-export const meta = () => [
-  { title: "Resumind | Auth" },
-  { name: "description", content: "Log into your account" },
-];
-
-// Authentication helpers
-const signIn = async () => {
-  await puter.auth.signIn();
-  localStorage.setItem("isAuthenticated", "true");
-};
-
-const signOut = () => {
-  puter.auth.signOut?.(); // optional if using puter auth
-  localStorage.removeItem("isAuthenticated");
-};
+import { useUser } from "../context/userContext";
 
 const Auth = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const next = location.search.split("next=")[1] || "/";
 
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    localStorage.getItem("isAuthenticated") === "true"
-  );
-  const [isLoading, setIsLoading] = useState(false);
+  const { user, signIn, signOut, checkAuthStatus, loading, error } = useUser();
 
+  // ✅ Effect for checking auth status on mount
   useEffect(() => {
-    if (isAuthenticated) navigate(next, { replace: true });
-  }, [isAuthenticated, next, navigate]);
+    const initAuth = async () => {
+      const status = await checkAuthStatus();
+      setIsAuthenticated(status)
+    };
+    initAuth();
+  }, [navigate]);
 
   const handleSignIn = async () => {
-    setIsLoading(true);
     try {
-      await signIn();
-      setIsAuthenticated(true);
-      navigate(next, { replace: true });
+      const success = await signIn();
+      if (success) {
+        navigate(next, { replace: true });
+      } else {
+        alert("Failed to sign in. Please try again.");
+      }
     } catch (err) {
       console.error("Sign in failed:", err);
-      alert("Failed to sign in. Please try again.");
-    } finally {
-      setIsLoading(false);
+      alert("An unexpected error occurred.");
     }
   };
+  console.log(error)
 
-  const handleSignOut = () => {
-    signOut();
+  const handleSignOut = async () => {
+    await signOut();
     setIsAuthenticated(false);
   };
 
@@ -59,7 +48,7 @@ const Auth = () => {
             <h2>Log In to Continue Your Job Journey</h2>
           </div>
           <div>
-            {isLoading ? (
+            {loading ? (
               <button className="auth-button animate-pulse">
                 <p>Signing you in...</p>
               </button>
@@ -73,6 +62,7 @@ const Auth = () => {
               </button>
             )}
           </div>
+          {error && <p className="text-red-500 text-sm">{error}</p>}
         </section>
       </div>
     </main>
